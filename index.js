@@ -53,7 +53,7 @@ const generateAccessToken = (req, res) => {
 
 }
 
-app.get('/access_token', nocache, generateAccessToken);
+app.get('/api/access_token', nocache, generateAccessToken);
 
 app.listen(port, () => {
   console.log(`Agora Token Server listening at http://localhost:${port}`);
