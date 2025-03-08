@@ -1,63 +1,64 @@
 const express = require('express');
-const {RtcTokenBuilder, RtcRole} = require('agora-access-token');
+const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
 require('dotenv').config();
 
 const port = 8080;
-
 const APP_ID = process.env.APP_ID;
 const APP_CERTIFICATE = process.env.APP_CERTIFICATE;
 
+if (!APP_ID || !APP_CERTIFICATE) {
+    console.error("APP_ID or APP_CERTIFICATE is missing. Check your .env file.");
+    process.exit(1);
+}
+
 const app = express();
 
-
 const nocache = (req, res, next) => {
-  res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-  res.header('Expires', '-1');
-  res.header('Pragma', 'no-cache');
-  next();
-}
+    res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.header('Expires', '-1');
+    res.header('Pragma', 'no-cache');
+    next();
+};
 
 const generateAccessToken = (req, res) => {
-    // set response header
     res.header('Access-Control-Allow-Origin', '*');
-    // get channel name
+
+    console.log("Received request:", req.query);
+
     const channelName = req.query.channelName;
     if (!channelName) {
-        return res.status(500).json({ 'error': 'channel name is required' });
+        console.log("Error: Channel name is required.");
+        return res.status(400).json({ error: 'channel name is required' });
     }
-    // get the uid
-    let uid = req.query.uid;
-    if (!uid || uid == '') {
-        uid = 0;
-    }
-    // get role
-    let role = RtcRole.SUBSCRIBER;
-    if (req.query.role == 'publisher') {
-        role = RtcRole.PUBLISHER;
-    }
-    // get the expire time
-    let expireTime = req.query.expireTime;
-    if (!expireTime || expireTime == '') {
-        expireTime = 3600;
-    } else {
-        expireTime = parseInt(expireTime, 10);
-    }
-    // calculate privilege expire time
-    const currentTime = Math.floor(Date.now() / 1000);
-    const privilegeExpireTime = currentTime + expireTime;
-    // build the token
-    // console.error('APP_ID and APP_CERTIFICATE must be set.');
-    const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpireTime);
-    // return the token
-    res.json({ 'token': token });
 
-}
+    let uid = req.query.uid || 0;
+    let role = req.query.role === 'publisher' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+    let expireTime = parseInt(req.query.expireTime, 10) || 3600;
+    const privilegeExpireTime = Math.floor(Date.now() / 1000) + expireTime;
+
+    console.log("Params - Channel:", channelName, "UID:", uid, "Role:", role === RtcRole.PUBLISHER ? "Publisher" : "Subscriber", "Expires:", privilegeExpireTime);
+    console.log("App Config - APP_ID:", APP_ID, "APP_CERTIFICATE:", APP_CERTIFICATE);
+
+    try {
+        const token = RtcTokenBuilder.buildTokenWithUid(
+            APP_ID,
+            APP_CERTIFICATE,
+            channelName,
+            uid,
+            role,
+            privilegeExpireTime
+        );
+
+        console.log("Generated Token:", token);
+        res.json({ token });
+    } catch (error) {
+        console.error("Error generating token:", error);
+        res.status(500).json({ error: 'Failed to generate token' });
+    }
+};
 
 app.get('/api/access_token', nocache, generateAccessToken);
 
 app.listen(port, () => {
-  console.log(`Agora Token Server listening at http://localhost:${port}`);
+    console.log(`Agora Token Server listening at http://localhost:${port}`);
 });
-
-
-// http://localhost:8080/access_token?channelName=lll&role=publisher&uid=1234&expireTime=40000
